@@ -1,0 +1,9 @@
+{
+  "name": "FloodRescue Connect",
+  "description": "A real-time, offline-first emergency response app connecting flood victims with rescuers using OpenStreetMap and Gemini AI for risk assessment.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone",
+    "geolocation"
+  ]
+}
