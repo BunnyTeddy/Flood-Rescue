@@ -1,38 +1,86 @@
 <!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>FloodRescue Connect</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link
-      rel="stylesheet"
-      href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-      integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
-      crossorigin=""
-    />
-    <style>
-      /* Custom scrollbar for dark mode aesthetics */
-      ::-webkit-scrollbar {
-        width: 8px;
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>FloodRescue Connect</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+  <style>
+    /* Custom scrollbar for dark mode aesthetics */
+    ::-webkit-scrollbar {
+      width: 8px;
+    }
+
+    ::-webkit-scrollbar-track {
+      background: #1e293b;
+    }
+
+    ::-webkit-scrollbar-thumb {
+      background: #475569;
+      border-radius: 4px;
+    }
+
+    ::-webkit-scrollbar-thumb:hover {
+      background: #64748b;
+    }
+
+    /* Leaflet map container height fix */
+    .leaflet-container {
+      width: 100%;
+      height: 100%;
+      background-color: #0f172a;
+      /* matches slate-900 */
+    }
+
+    /* Pulsing animation for assigned victim markers */
+    @keyframes pulse-ring-anim {
+      0% {
+        transform: scale(0.5);
+        opacity: 0.8;
       }
-      ::-webkit-scrollbar-track {
-        background: #1e293b;
+
+      100% {
+        transform: scale(2.5);
+        opacity: 0;
       }
-      ::-webkit-scrollbar-thumb {
-        background: #475569;
-        border-radius: 4px;
-      }
-      ::-webkit-scrollbar-thumb:hover {
-        background: #64748b;
-      }
-      /* Leaflet map container height fix */
-      .leaflet-container {
-        width: 100%;
-        height: 100%;
-        background-color: #0f172a; /* matches slate-900 */
-      }
-    </style>
+    }
+
+    .pulse-ring {
+      animation: pulse-ring-anim 1.5s ease-out infinite;
+    }
+
+    .pulse-ring-delay {
+      animation-delay: 0.75s;
+    }
+
+    /* Custom popup styling for victim info */
+    .leaflet-popup-content-wrapper {
+      border-radius: 12px !important;
+      box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3) !important;
+      padding: 0 !important;
+    }
+
+    .leaflet-popup-content {
+      margin: 12px !important;
+    }
+
+    .leaflet-popup-tip {
+      box-shadow: 0 3px 8px rgba(0, 0, 0, 0.2) !important;
+    }
+
+    .victim-info-popup .leaflet-popup-close-button {
+      color: #64748b !important;
+      font-size: 20px !important;
+      padding: 6px 8px !important;
+    }
+
+    .victim-info-popup .leaflet-popup-close-button:hover {
+      color: #1e293b !important;
+    }
+  </style>
   <script type="importmap">
 {
   "imports": {
@@ -52,7 +100,10 @@
 }
 </script>
 </head>
-  <body class="bg-slate-950 text-slate-100">
-    <div id="root"></div>
-  </body>
+
+<body class="bg-slate-950 text-slate-100">
+  <div id="root"></div>
+  <script type="module" src="/index.tsx"></script>
+</body>
+
 </html>

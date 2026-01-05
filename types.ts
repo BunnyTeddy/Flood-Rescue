@@ -32,11 +32,15 @@ export interface SOSRequest {
   status: Status;
   note: string;
   timestamp: number;
+  numberOfPeople?: number;
+  specialNeeds?: string[];
+  voiceNoteUrl?: string;
   rescuerId?: string;
+  rescuerName?: string;
   rescuerPhone?: string;
   rescuerLocation?: Location;
-  proofImageUrls?: string[]; // Changed to array
-  requestImageUrls?: string[]; // Changed to array
+  proofImageUrls?: string[];
+  requestImageUrls?: string[];
   messages: ChatMessage[];
 }
 
@@ -45,8 +49,22 @@ export enum UserRole {
   RESCUER = 'RESCUER'
 }
 
-export interface AIAnalysisResult {
-  riskLevel: string;
-  recommendedGear: string[];
-  hazards: string[];
+
+export enum VehicleType {
+  BOAT = 'BOAT',
+  CANOE = 'CANOE',
+  HELICOPTER = 'HELICOPTER',
+  TRUCK = 'TRUCK',
+  MOTORCYCLE = 'MOTORCYCLE',
+  ON_FOOT = 'ON_FOOT',
+  OTHER = 'OTHER'
+}
+
+export interface RescuerProfile {
+  name: string;
+  phone: string;
+  email: string;
+  vehicleType?: VehicleType;
+  passengerCapacity?: number;
+  createdAt: number;
 }

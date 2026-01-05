@@ -1,26 +1,29 @@
 import { initializeApp } from 'firebase/app';
-import { 
-  getAuth, 
-  signInWithEmailAndPassword, 
-  createUserWithEmailAndPassword, 
-  signOut, 
+import {
+  getAuth,
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  signOut,
   onAuthStateChanged,
-  User 
+  User
 } from 'firebase/auth';
-import { 
-  getFirestore, 
-  collection, 
-  addDoc, 
-  onSnapshot, 
-  updateDoc, 
-  doc, 
-  query, 
-  where, 
+import {
+  getFirestore,
+  collection,
+  addDoc,
+  onSnapshot,
+  updateDoc,
+  doc,
+  query,
+  where,
   getDocs,
   orderBy,
-  arrayUnion
+  arrayUnion,
+  setDoc,
+  getDoc,
+  deleteDoc
 } from 'firebase/firestore';
-import { SOSRequest, Status, ChatMessage } from '../types';
+import { SOSRequest, Status, ChatMessage, Location, RescuerProfile, VehicleType } from '../types';
 
 // Configuration for project: bang-79e7b
 const firebaseConfig = {
@@ -42,6 +45,53 @@ const db = getFirestore(app);
 export const AuthService = {
   login: (email: string, pass: string) => signInWithEmailAndPassword(auth, email, pass),
   signup: (email: string, pass: string) => createUserWithEmailAndPassword(auth, email, pass),
+
+  // Extended signup that also stores rescuer profile
+  signupWithProfile: async (email: string, pass: string, name: string, phone: string) => {
+    const userCredential = await createUserWithEmailAndPassword(auth, email, pass);
+    // Store rescuer profile in Firestore
+    await setDoc(doc(db, 'rescuer_profiles', userCredential.user.uid), {
+      name,
+      phone,
+      email,
+      createdAt: Date.now()
+    });
+    return userCredential;
+  },
+
+  // Get rescuer profile by uid
+  getRescuerProfile: async (uid: string): Promise<RescuerProfile | null> => {
+    try {
+      const docSnap = await getDoc(doc(db, 'rescuer_profiles', uid));
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        return {
+          name: data.name,
+          phone: data.phone,
+          email: data.email || '',
+          vehicleType: data.vehicleType as VehicleType | undefined,
+          passengerCapacity: data.passengerCapacity,
+          createdAt: data.createdAt || Date.now()
+        };
+      }
+      return null;
+    } catch (e) {
+      console.error('Error getting rescuer profile:', e);
+      return null;
+    }
+  },
+
+  // Update rescuer profile
+  updateRescuerProfile: async (uid: string, updates: Partial<Omit<RescuerProfile, 'createdAt' | 'email'>>) => {
+    try {
+      const ref = doc(db, 'rescuer_profiles', uid);
+      await updateDoc(ref, updates);
+    } catch (e) {
+      console.error('Error updating rescuer profile:', e);
+      throw e;
+    }
+  },
+
   logout: () => signOut(auth),
   observeUser: (callback: (user: User | null) => void) => onAuthStateChanged(auth, callback),
   currentUser: () => auth.currentUser
@@ -54,7 +104,7 @@ export const RescueStore = {
     // Listen to all requests, ordered by timestamp desc
     // Note: This requires a standard single-field index on 'timestamp', which Firestore creates automatically.
     const q = query(collection(db, 'sos_requests'), orderBy('timestamp', 'desc'));
-    
+
     return onSnapshot(q, (snapshot) => {
       const requests = snapshot.docs.map(doc => ({
         id: doc.id,
@@ -62,9 +112,9 @@ export const RescueStore = {
       })) as SOSRequest[];
       callback(requests);
     }, (error) => {
-       console.error("Firestore Listen Error:", error);
-       // If this errors, it's usually because the Firestore Database hasn't been created in the Console 
-       // or Security Rules are blocking access.
+      console.error("Firestore Listen Error:", error);
+      // If this errors, it's usually because the Firestore Database hasn't been created in the Console 
+      // or Security Rules are blocking access.
     });
   },
 
@@ -73,29 +123,42 @@ export const RescueStore = {
     // Ensure timestamp is a number (Date.now()) for sorting.
     const { id, ...data } = request;
     const docRef = await addDoc(collection(db, 'sos_requests'), {
-        ...data,
-        timestamp: Date.now() 
+      ...data,
+      timestamp: Date.now()
     });
     return docRef.id;
   },
 
-  updateStatus: async (id: string, status: Status, rescuerId?: string, proofUrls?: string[]) => {
+  updateStatus: async (
+    id: string,
+    status: Status,
+    rescuerId?: string,
+    proofUrls?: string[],
+    rescuerLocation?: Location,
+    rescuerName?: string,
+    rescuerPhone?: string
+  ) => {
     const ref = doc(db, 'sos_requests', id);
     const updates: any = { status };
-    
+
     if (rescuerId) {
-        updates.rescuerId = rescuerId;
-    }
-    
-    if (proofUrls) {
-        updates.proofImageUrls = proofUrls;
+      updates.rescuerId = rescuerId;
     }
 
-    if (status === Status.IN_PROGRESS) {
-         // In a real app, this would be the rescuer's real GPS coords and phone profile
-         updates.rescuerPhone = '+1-555-0999'; 
-         // We don't update location here to keep it simple, 
-         // but the app could write rescuerLocation to the doc periodically.
+    if (proofUrls) {
+      updates.proofImageUrls = proofUrls;
+    }
+
+    if (rescuerLocation) {
+      updates.rescuerLocation = rescuerLocation;
+    }
+
+    if (rescuerName) {
+      updates.rescuerName = rescuerName;
+    }
+
+    if (rescuerPhone) {
+      updates.rescuerPhone = rescuerPhone;
     }
 
     await updateDoc(ref, updates);
@@ -117,26 +180,38 @@ export const RescueStore = {
   findRequestByPhone: async (phone: string): Promise<SOSRequest | null> => {
     // 1. Query by phone only to avoid needing complex composite indexes
     const q = query(collection(db, 'sos_requests'), where('contactPhone', '==', phone));
-    
+
     try {
-        const querySnapshot = await getDocs(q);
-        if (querySnapshot.empty) return null;
+      const querySnapshot = await getDocs(q);
+      if (querySnapshot.empty) return null;
 
-        // 2. Filter and sort in memory (Client-side)
-        // This is efficient enough for an MVP and avoids index configuration errors
-        const requests = querySnapshot.docs.map(doc => ({
-            id: doc.id,
-            ...doc.data()
-        })) as SOSRequest[];
+      // 2. Filter and sort in memory (Client-side)
+      // This is efficient enough for an MVP and avoids index configuration errors
+      const requests = querySnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })) as SOSRequest[];
 
-        const activeRequests = requests
-            .filter(r => r.status !== 'RESOLVED')
-            .sort((a, b) => b.timestamp - a.timestamp); // Newest first
+      const activeRequests = requests
+        .filter(r => r.status !== 'RESOLVED')
+        .sort((a, b) => b.timestamp - a.timestamp); // Newest first
 
-        return activeRequests.length > 0 ? activeRequests[0] : null;
+      return activeRequests.length > 0 ? activeRequests[0] : null;
     } catch (e) {
-        console.error("Error finding request:", e);
-        return null;
+      console.error("Error finding request:", e);
+      return null;
     }
+  },
+
+  // Cancel a request (delete from database)
+  cancelRequest: async (id: string) => {
+    const ref = doc(db, 'sos_requests', id);
+    await deleteDoc(ref);
+  },
+
+  // Update an existing request
+  updateRequest: async (id: string, updates: Partial<Omit<SOSRequest, 'id' | 'timestamp' | 'status'>>) => {
+    const ref = doc(db, 'sos_requests', id);
+    await updateDoc(ref, updates);
   }
 };
